@@ -25,6 +25,18 @@ GOOD_BUILDER = "https://github.com/actions/runner/github-hosted"
 
 # 버전별로 어떤 attestation을 서빙할지 정의. commit_sha는 각 버전의 실제
 # gitHead와 맞출 필요 없음 (predicate_parser가 뽑아내는 값일 뿐, 별도 검증 없음).
+def _good(commit_byte: str) -> dict:
+    """정상 baseline용: 저장소/워크플로/builder가 전부 일관된 attestation."""
+    return dict(
+        owner_repo=REPO,
+        cert_workflow=GOOD_WORKFLOW,
+        predicate_repo=f"https://github.com/{REPO}",
+        predicate_workflow=GOOD_WORKFLOW,
+        builder_id=GOOD_BUILDER,
+        commit=commit_byte * 40,
+    )
+
+
 ATTESTATION_CONFIG = {
     "3.0.0": dict(
         owner_repo="attacker-org/evil-repo",       # 인증서(OIDC)는 다른 저장소를 주장
@@ -33,6 +45,21 @@ ATTESTATION_CONFIG = {
         predicate_workflow=GOOD_WORKFLOW,
         builder_id=GOOD_BUILDER,
         commit="b" * 40,
+    ),
+    # 규칙 5(Unexpected Builder) 기준선용 정상 릴리스들
+    "1.0.4": _good("4"),
+    "1.0.5": _good("5"),
+    "1.0.6": _good("6"),
+    "1.0.7": _good("7"),
+    # 규칙 5 변조 버전: 저장소/워크플로는 기준선과 동일(그래서 oidc_mismatch는
+    # 안 뜸), builder만 평소와 다른 비공식 러너로 바뀜.
+    "3.1.0": dict(
+        owner_repo=REPO,
+        cert_workflow=GOOD_WORKFLOW,
+        predicate_repo=f"https://github.com/{REPO}",
+        predicate_workflow=GOOD_WORKFLOW,
+        builder_id="https://gitlab.com/self-hosted-runner/unofficial",
+        commit="c" * 40,
     ),
 }
 
