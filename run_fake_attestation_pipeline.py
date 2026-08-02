@@ -61,6 +61,28 @@ ATTESTATION_CONFIG = {
         builder_id="https://gitlab.com/self-hosted-runner/unofficial",
         commit="c" * 40,
     ),
+    # 규칙 3(Workflow Drift) 변조 버전: baseline(GitHub 저장소 실제 커밋에
+    # .github/workflows/release.yml 존재)과 다르게, 서명은 완전히 다른
+    # 워크플로 경로(sneaky-deploy.yml)에서 나온 것으로 주장함.
+    "4.1.0": dict(
+        owner_repo=REPO,
+        cert_workflow=".github/workflows/sneaky-deploy.yml",
+        predicate_repo=f"https://github.com/{REPO}",
+        predicate_workflow=".github/workflows/sneaky-deploy.yml",
+        builder_id=GOOD_BUILDER,
+        commit="d" * 40,
+    ),
+}
+
+# 규칙 6(Tag/Identity Drift)용 배포자(_npmUser) 주입. Verdaccio는 이 필드를
+# 채워주지 않으므로 npm 패키지 메타데이터 응답에 직접 주입한다.
+PUBLISHER_CONFIG = {
+    "3.0.0": "minjae0202",
+    "3.1.0": "minjae0202",
+    "4.0.0": "minjae0202",
+    "4.0.1": "minjae0202",
+    "4.1.0": "minjae0202",
+    "5.0.0": "attacker-account",  # 과거에 한 번도 없던 새 배포자 신원
 }
 
 
@@ -102,11 +124,15 @@ def patched_get(url, *args, **kwargs):
                 return response
             versions = data.get("versions", {})
             for version, version_data in versions.items():
-                if version in ATTESTATION_CONFIG and isinstance(version_data, dict):
+                if not isinstance(version_data, dict):
+                    continue
+                if version in ATTESTATION_CONFIG:
                     version_data.setdefault("dist", {})["attestations"] = {
                         "url": f"https://registry.npmjs.org/-/npm/v1/attestations/{data.get('name')}@{version}",
                         "provenance": {"predicateType": "https://slsa.dev/provenance/v1"},
                     }
+                if version in PUBLISHER_CONFIG:
+                    version_data["_npmUser"] = {"name": PUBLISHER_CONFIG[version]}
             response._content = json.dumps(data).encode("utf-8")
         return response
 
